@@ -50,3 +50,59 @@
   { user: principal, badge-type: (string-ascii 50) }
   { earned-at: uint, level: uint }
 )
+
+(define-map study-groups
+  { group-id: uint }
+  {
+    creator: principal,
+    name: (string-ascii 100),
+    subject: (string-ascii 50),
+    members: uint,
+    total-hours: uint,
+    active: bool
+  }
+)
+
+(define-map group-memberships
+  { user: principal, group-id: uint }
+  { joined-at: uint, contribution-hours: uint }
+)
+
+(define-public (create-study-group (name (string-ascii 100)) (subject (string-ascii 50)))
+  (let ((group-id (var-get next-challenge-id)))
+    (map-set study-groups
+      { group-id: group-id }
+      {
+        creator: tx-sender,
+        name: name,
+        subject: subject,
+        members: u1,
+        total-hours: u0,
+        active: true
+      }
+    )
+    (map-set group-memberships
+      { user: tx-sender, group-id: group-id }
+      { joined-at: block-height, contribution-hours: u0 }
+    )
+    (var-set next-challenge-id (+ group-id u1))
+    (ok group-id)
+  )
+)
+
+(define-public (join-study-group (group-id uint))
+  (let ((group (unwrap! (map-get? study-groups { group-id: group-id }) err-not-found)))
+    (asserts! (get active group) err-challenge-not-active)
+    (asserts! (is-none (map-get? group-memberships { user: tx-sender, group-id: group-id })) err-already-claimed)
+    
+    (map-set group-memberships
+      { user: tx-sender, group-id: group-id }
+      { joined-at: block-height, contribution-hours: u0 }
+    )
+    (map-set study-groups
+      { group-id: group-id }
+      (merge group { members: (+ (get members group) u1) })
+    )
+    (ok true)
+  )
+)
