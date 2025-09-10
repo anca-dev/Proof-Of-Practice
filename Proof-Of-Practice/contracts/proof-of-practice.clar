@@ -83,7 +83,7 @@
     )
     (map-set group-memberships
       { user: tx-sender, group-id: group-id }
-      { joined-at: block-height, contribution-hours: u0 }
+      { joined-at: stacks-block-height, contribution-hours: u0 }
     )
     (var-set next-challenge-id (+ group-id u1))
     (ok group-id)
@@ -97,7 +97,7 @@
     
     (map-set group-memberships
       { user: tx-sender, group-id: group-id }
-      { joined-at: block-height, contribution-hours: u0 }
+      { joined-at: stacks-block-height, contribution-hours: u0 }
     )
     (map-set study-groups
       { group-id: group-id }
@@ -110,7 +110,7 @@
 (define-public (log-practice (hours uint) (subject (string-ascii 50)) (notes (string-ascii 200)))
   (let (
     (user tx-sender)
-    (today (/ block-height u144)) ;; Approximate daily blocks
+    (today (/ stacks-block-height u144)) ;; Approximate daily blocks
     (current-streaks (default-to { current-streak: u0, longest-streak: u0, last-practice-date: u0, total-hours: u0, weekly-hours: u0, monthly-hours: u0 }
                                  (map-get? user-streaks { user: user })))
   )
@@ -208,8 +208,8 @@
         participants: u0,
         completed: u0,
         active: true,
-        start-date: (/ block-height u144),
-        end-date: (+ (/ block-height u144) duration-days)
+        start-date: (/ stacks-block-height u144),
+        end-date: (+ (/ stacks-block-height u144) duration-days)
       }
     )
     (var-set next-challenge-id (+ challenge-id u1))
@@ -286,7 +286,7 @@
           achievement-type: achievement-type,
           streak-length: streak-days,
           subject: subject,
-          minted-at: block-height,
+          minted-at: stacks-block-height,
           transferable: true
         }
       )
@@ -305,7 +305,7 @@
     
     (map-set user-badges
       { user: user, badge-type: badge-type }
-      { earned-at: block-height, level: (get level subject-data) }
+      { earned-at: stacks-block-height, level: (get level subject-data) }
     )
     (ok true)
   )
