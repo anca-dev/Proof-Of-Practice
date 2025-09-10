@@ -1,30 +1,52 @@
+(define-constant contract-owner tx-sender)
+(define-constant err-not-found (err u101))
+(define-constant err-unauthorized (err u102))
+(define-constant err-invalid-streak (err u103))
+(define-constant err-already-claimed (err u104))
+(define-constant err-invalid-hours (err u105))
+(define-constant err-already-logged-today (err u106))
+(define-constant err-invalid-challenge (err u107))
+(define-constant err-challenge-not-active (err u108))
 
-;; title: proof-of-practice
-;; version:
-;; summary:
-;; description:
+(define-data-var next-nft-id uint u1)
+(define-data-var next-challenge-id uint u0)
+(define-data-var practice-reward-pool uint u0)
 
-;; traits
-;;
+(define-map practice-logs
+  { user: principal, date: uint }
+  { hours: uint, subject: (string-ascii 50), verified: bool, notes: (string-ascii 200) }
+)
 
-;; token definitions
-;;
+(define-map user-streaks
+  { user: principal }
+  {
+    current-streak: uint,
+    longest-streak: uint,
+    last-practice-date: uint,
+    total-hours: uint,
+    weekly-hours: uint,
+    monthly-hours: uint
+  }
+)
 
-;; constants
-;;
+(define-map subject-stats
+  { user: principal, subject: (string-ascii 50) }
+  { total-hours: uint, streak: uint, level: uint, xp: uint }
+)
 
-;; data vars
-;;
+(define-map nft-achievements
+  { nft-id: uint }
+  {
+    owner: principal,
+    achievement-type: (string-ascii 50),
+    streak-length: uint,
+    subject: (string-ascii 50),
+    minted-at: uint,
+    transferable: bool
+  }
+)
 
-;; data maps
-;;
-
-;; public functions
-;;
-
-;; read only functions
-;;
-
-;; private functions
-;;
-
+(define-map user-badges
+  { user: principal, badge-type: (string-ascii 50) }
+  { earned-at: uint, level: uint }
+)
