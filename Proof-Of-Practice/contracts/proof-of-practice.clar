@@ -161,3 +161,104 @@
     )
   )
 )
+
+(define-map practice-challenges
+  { challenge-id: uint }
+  {
+    creator: principal,
+    title: (string-ascii 100),
+    description: (string-ascii 300),
+    subject: (string-ascii 50),
+    target-hours: uint,
+    duration-days: uint,
+    reward-amount: uint,
+    participants: uint,
+    completed: uint,
+    active: bool,
+    start-date: uint,
+    end-date: uint
+  }
+)
+
+(define-map challenge-participants
+  { challenge-id: uint, user: principal }
+  { hours-logged: uint, completed: bool, reward-claimed: bool }
+)
+
+(define-map mentor-verifications
+  { mentor: principal }
+  { verified: bool, specialties: (list 5 (string-ascii 50)) }
+)
+
+(define-public (create-practice-challenge (title (string-ascii 100)) (description (string-ascii 300)) (subject (string-ascii 50)) (target-hours uint) (duration-days uint) (reward-amount uint))
+  (let ((challenge-id (var-get next-challenge-id)))
+    (asserts! (>= (var-get practice-reward-pool) reward-amount) err-invalid-challenge)
+    (try! (stx-transfer? reward-amount tx-sender (as-contract tx-sender)))
+    
+    (map-set practice-challenges
+      { challenge-id: challenge-id }
+      {
+        creator: tx-sender,
+        title: title,
+        description: description,
+        subject: subject,
+        target-hours: target-hours,
+        duration-days: duration-days,
+        reward-amount: reward-amount,
+        participants: u0,
+        completed: u0,
+        active: true,
+        start-date: (/ block-height u144),
+        end-date: (+ (/ block-height u144) duration-days)
+      }
+    )
+    (var-set next-challenge-id (+ challenge-id u1))
+    (var-set practice-reward-pool (+ (var-get practice-reward-pool) reward-amount))
+    (ok challenge-id)
+  )
+)
+
+(define-public (join-challenge (challenge-id uint))
+  (let ((challenge (unwrap! (map-get? practice-challenges { challenge-id: challenge-id }) err-not-found)))
+    (asserts! (get active challenge) err-challenge-not-active)
+    (asserts! (is-none (map-get? challenge-participants { challenge-id: challenge-id, user: tx-sender })) err-already-claimed)
+    
+    (map-set challenge-participants
+      { challenge-id: challenge-id, user: tx-sender }
+      { hours-logged: u0, completed: false, reward-claimed: false }
+    )
+    (map-set practice-challenges
+      { challenge-id: challenge-id }
+      (merge challenge { participants: (+ (get participants challenge) u1) })
+    )
+    (ok true)
+  )
+)
+
+(define-public (claim-challenge-reward (challenge-id uint))
+  (let (
+    (challenge (unwrap! (map-get? practice-challenges { challenge-id: challenge-id }) err-not-found))
+    (participation (unwrap! (map-get? challenge-participants { challenge-id: challenge-id, user: tx-sender }) err-not-found))
+  )
+    (asserts! (get completed participation) err-invalid-challenge)
+    (asserts! (not (get reward-claimed participation)) err-already-claimed)
+    (asserts! (>= (get hours-logged participation) (get target-hours challenge)) err-invalid-challenge)
+    
+    (let ((reward-per-participant (/ (get reward-amount challenge) (get completed challenge))))
+      (try! (as-contract (stx-transfer? reward-per-participant tx-sender tx-sender)))
+      (map-set challenge-participants
+        { challenge-id: challenge-id, user: tx-sender }
+        (merge participation { reward-claimed: true })
+      )
+    )
+    (ok true)
+  )
+)
+
+(define-public (fund-reward-pool (amount uint))
+  (begin
+    (try! (stx-transfer? amount tx-sender (as-contract tx-sender)))
+    (var-set practice-reward-pool (+ (var-get practice-reward-pool) amount))
+    (ok true)
+  )
+)
