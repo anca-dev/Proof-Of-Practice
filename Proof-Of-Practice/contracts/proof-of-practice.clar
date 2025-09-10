@@ -262,3 +262,128 @@
     (ok true)
   )
 )
+
+(define-public (claim-streak-nft (streak-days uint) (subject (string-ascii 50)))
+  (let (
+    (user tx-sender)
+    (user-streak (unwrap! (map-get? user-streaks { user: user }) err-not-found))
+    (nft-id (var-get next-nft-id))
+  )
+    (asserts! (>= (get current-streak user-streak) streak-days) err-invalid-streak)
+    (asserts! (or (is-eq streak-days u7) (is-eq streak-days u30) (is-eq streak-days u100) (is-eq streak-days u365)) err-invalid-streak)
+    
+    (let ((achievement-type (if (is-eq streak-days u7)
+                              "Week Warrior"
+                              (if (is-eq streak-days u30)
+                                "Month Master"
+                                (if (is-eq streak-days u100)
+                                  "Century Scholar"
+                                  "Year Legend")))))
+      (map-set nft-achievements
+        { nft-id: nft-id }
+        {
+          owner: user,
+          achievement-type: achievement-type,
+          streak-length: streak-days,
+          subject: subject,
+          minted-at: block-height,
+          transferable: true
+        }
+      )
+      (var-set next-nft-id (+ nft-id u1))
+      (ok nft-id)
+    )
+  )
+)
+
+(define-public (earn-subject-badge (subject (string-ascii 50)) (badge-type (string-ascii 50)))
+  (let (
+    (user tx-sender)
+    (subject-data (unwrap! (map-get? subject-stats { user: user, subject: subject }) err-not-found))
+  )
+    (asserts! (>= (get total-hours subject-data) u50) err-invalid-streak) ;; Require 50+ hours
+    
+    (map-set user-badges
+      { user: user, badge-type: badge-type }
+      { earned-at: block-height, level: (get level subject-data) }
+    )
+    (ok true)
+  )
+)
+
+(define-public (verify-practice-log (user principal) (date uint))
+  (let ((log (unwrap! (map-get? practice-logs { user: user, date: date }) err-not-found)))
+    (asserts! (is-eq tx-sender contract-owner) err-unauthorized)
+    (map-set practice-logs
+      { user: user, date: date }
+      (merge log { verified: true })
+    )
+    (ok true)
+  )
+)
+
+(define-public (transfer-nft (nft-id uint) (recipient principal))
+  (let ((nft (unwrap! (map-get? nft-achievements { nft-id: nft-id }) err-not-found)))
+    (asserts! (is-eq tx-sender (get owner nft)) err-unauthorized)
+    (asserts! (get transferable nft) err-unauthorized)
+    
+    (map-set nft-achievements
+      { nft-id: nft-id }
+      (merge nft { owner: recipient })
+    )
+    (ok true)
+  )
+)
+
+(define-read-only (get-practice-log (user principal) (date uint))
+  (map-get? practice-logs { user: user, date: date })
+)
+
+(define-read-only (get-user-streaks (user principal))
+  (map-get? user-streaks { user: user })
+)
+
+(define-read-only (get-subject-stats (user principal) (subject (string-ascii 50)))
+  (map-get? subject-stats { user: user, subject: subject })
+)
+
+(define-read-only (get-nft-achievement (nft-id uint))
+  (map-get? nft-achievements { nft-id: nft-id })
+)
+
+(define-read-only (get-study-group (group-id uint))
+  (map-get? study-groups { group-id: group-id })
+)
+
+(define-read-only (get-practice-challenge (challenge-id uint))
+  (map-get? practice-challenges { challenge-id: challenge-id })
+)
+
+(define-read-only (get-user-badges (user principal) (badge-type (string-ascii 50)))
+  (map-get? user-badges { user: user, badge-type: badge-type })
+)
+
+(define-read-only (get-leaderboard-stats (user principal))
+  (let ((streaks (map-get? user-streaks { user: user })))
+    (if (is-some streaks)
+      (let ((s (unwrap-panic streaks)))
+        {
+          total-hours: (get total-hours s),
+          current-streak: (get current-streak s),
+          longest-streak: (get longest-streak s),
+          weekly-hours: (get weekly-hours s),
+          monthly-hours: (get monthly-hours s)
+        }
+      )
+      { total-hours: u0, current-streak: u0, longest-streak: u0, weekly-hours: u0, monthly-hours: u0 }
+    )
+  )
+)
+
+(define-read-only (get-platform-stats)
+  {
+    total-nfts-minted: (var-get next-nft-id),
+    total-challenges: (var-get next-challenge-id),
+    reward-pool: (var-get practice-reward-pool)
+  }
+)
